@@ -3,8 +3,7 @@
 
 def solve():
     with open('input', 'r') as file:
-        data = file.readlines()
-        return sum(map(int, data))
+        return sum(map(int, file.readlines()))
 
 
 print('Result: ' + str(solve()))
