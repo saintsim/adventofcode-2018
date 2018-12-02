@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
 
-def solve():
+def frequency_change(lines):
+        return sum(map(int, lines))
+
+
+if __name__ == '__main__':
     with open('input', 'r') as file:
-        return sum(map(int, file.readlines()))
-
-
-print('Result: ' + str(solve()))
+        lines = file.readlines()
+        print('Result: ' + str(frequency_change(lines)))
