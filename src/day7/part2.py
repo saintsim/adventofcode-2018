@@ -58,11 +58,8 @@ def node_value(node):
 def node_order(lines, num_of_workers):
     nodes = build_nodes(lines)
     time_taken = 0
-    workers = []
-    node_working_on = []
-    for _ in range(num_of_workers):
-        workers.append(0)
-        node_working_on.append('')
+    workers = [0]*num_of_workers
+    node_working_on = ['']*num_of_workers
     while True:
         for idx, worker in enumerate(workers):
             if worker == 0:
