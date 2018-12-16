@@ -28,6 +28,8 @@ def move(player):
     close_range = get_in_close_range(player, in_range)
     print('finding reachable...')
     reachable = get_reachable(player, close_range)
+    if not reachable:
+        reachable = get_reachable(player, [x for x in in_range if x not in close_range])
     print('finding nearest...')
     nearest = get_nearest(reachable)
     print('finding chosen...')
@@ -40,6 +42,8 @@ def move(player):
         player[1] = new_row
         player[2] = new_col
         GAME_BOARD[old_row][old_col] = '.'
+    else:
+        print('no move!')
 
 
 # get targets
@@ -116,17 +120,29 @@ def find_reachable_paths(from_row, from_col, dest_row, dest_col):
 
 
 def get_path(current_row_a, current_col_a, dest_row, dest_col, visited, path):
+    global SHORTEST_PATH
     visited.append([current_row_a, current_col_a])
     path.append([current_row_a, current_col_a])
+
+    #if path == [[1, 5],[2, 5], [2, 4]]:
+    #    print('in magic path')
 
     if len(path) > SHORTEST_PATH:
         return path
 
-    if len(path) > 25:
+    if len(path) > 30:
+        #print('!! skipping too long: ' + str(path))
         return path
 
+    # going in the wrong direction?
+    if len(path) > 4:
+        manh_now = manhattan_distance(current_row_a, current_col_a, dest_row, dest_col)
+        manh_before = manhattan_distance(path[-4][0], path[-4][1], dest_row, dest_col)
+        if manh_before < manh_now:
+            #print('!! skipping wrong way: ' + str(path))
+            return path  # wrong way!
+
     if current_row_a == dest_row and current_col_a == dest_col:
-        global SHORTEST_PATH
         if len(path) < SHORTEST_PATH:
             SHORTEST_PATH = len(path)
         VALID_PATHS.append(path.copy())
@@ -153,6 +169,10 @@ def get_path(current_row_a, current_col_a, dest_row, dest_col, visited, path):
             path.pop()
             visited.remove([current_row_a, current_col_a + 1])
     # go left
+    #if path == [[1, 5],[2, 5]]:
+    #    print('in magic path')
+    #if current_row_a == 2 and current_col_a-1 == 4:
+    #    print('in magic pat 2')
     if GAME_BOARD[current_row_a][current_col_a-1] == '.':
         if [current_row_a, current_col_a-1] not in visited:
             get_path(current_row_a, current_col_a-1, dest_row, dest_col, visited, path)
@@ -273,9 +293,9 @@ def play_pacman(lines):
         print(str(len(PLAYERS)) + ' players')
         i=0
         for player in PLAYERS:
-            if i == 11:
-                print('11')
-                pass
+            #if i == 11:
+            #    print('11')
+            #    pass
             if player[0].hit_points > 0:
                 print('Players turn: ' + str(i) + ' (' + str(player[1]) + ', ' + str(player[2]) + ')')
                 if not attack(player):
