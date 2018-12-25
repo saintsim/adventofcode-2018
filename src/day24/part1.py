@@ -211,9 +211,6 @@ def immune_system_simulator(lines):
         if is_end():
             break
         i += 1
-        if i > 3142:
-            pass
-            print('magic')
         print('-------: ' + str(i))
     return get_outcome()
 
