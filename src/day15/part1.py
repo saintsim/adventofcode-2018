@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
+import copy
+import datetime
+
 GAME_BOARD = []
 PLAYERS = []  # Unit object + row/col of each player in this round
-ROUND = 0  # round number
-
-VALID_PATHS = []
-SHORTEST_PATH = 100000
+ROUND = 1  # round number
+PATH_HISTORY = []
+PATHS_VISITED = []
 
 
 class Unit:
@@ -17,33 +19,39 @@ class Unit:
         return self.unit_type
 
 
+class Paths:
+    def __init__(self, current, visited, limit):
+        self.current = current
+        self.visited = visited
+        self.limit = limit
+
+
+def get_date_time():
+    return str(datetime.datetime.now().strftime('[%Y-%m-%d %H:%M:%S] '))
+
+
 def move(player):
-    global SHORTEST_PATH
-    SHORTEST_PATH = 100000
-    print('finding targets...')
+    print(get_date_time() + 'finding targets...')
     targets = get_targets(player)
-    print('finding in range...')
+    print(get_date_time() + 'finding in range...')
     in_range = get_in_range(targets)
-    # optimise to only look at the closer ones
-    close_range = get_in_close_range(player, in_range)
-    print('finding reachable...')
-    reachable = get_reachable(player, close_range)
-    if not reachable:
-        reachable = get_reachable(player, [x for x in in_range if x not in close_range])
-    print('finding nearest...')
+    print(get_date_time() + 'finding reachable...')
+    reachable = get_reachable(player, in_range)
+    print(get_date_time() + 'finding nearest...')
     nearest = get_nearest(reachable)
-    print('finding chosen...')
+    print(get_date_time() + 'finding chosen...')
     chosen = get_chosen(player, nearest)
     if chosen:
         # make the move
         old_row, old_col = chosen[1][0]
         new_row, new_col = chosen[1][1]
+        print(get_date_time() + 'Moving to: (' + str(new_row) + ', ' + str(new_col) + ')')
         GAME_BOARD[new_row][new_col] = GAME_BOARD[old_row][old_col]
         player[1] = new_row
         player[2] = new_col
         GAME_BOARD[old_row][old_col] = '.'
     else:
-        print('no move!')
+        print(get_date_time() + 'no move!')
 
 
 # get targets
@@ -61,7 +69,7 @@ def get_in_range(targets):
     in_range = []
     for target in targets:
         target_obj, target_row, target_col = target
-        in_range = is_in_range(in_range, target_obj, target_row-1, target_col) # top
+        in_range = is_in_range(in_range, target_obj, target_row-1, target_col)  # top
         in_range = is_in_range(in_range, target_obj, target_row+1, target_col)  # bottom
         in_range = is_in_range(in_range, target_obj, target_row, target_col-1)  # left
         in_range = is_in_range(in_range, target_obj, target_row, target_col+1)  # right
@@ -74,123 +82,94 @@ def is_in_range(in_range, obj, row, col):
     return in_range
 
 
-def get_in_close_range(player, in_range):
-    # drop half
-    by_range = {}
-    in_close_range = []
-    from_row = player[1]
-    from_col = player[2]
-    in_range_points_count = 0
-    for in_range_details in in_range:
-        distance = manhattan_distance(from_row, from_col, in_range_details[1], in_range_details[2])
-        if distance in by_range:
-            by_range[distance].append(in_range_details)
-        else:
-            by_range[distance] = [in_range_details]
-        in_range_points_count += 1
-    number_to_include = max(10, round(in_range_points_count/2))
-    i = 0
-    for key in sorted(by_range):
-        if i > number_to_include:
-            break
-        for entry in by_range[key]:
-            in_close_range.append(entry)
-            i += 1
-    return in_close_range
-
-
-def manhattan_distance(from_row, from_col, to_row, to_col):
-    return abs(from_row - to_row) + abs(from_col - to_col)
-
-
 def get_reachable(player, in_range):
-    reachable = []
-    for in_range_cell in in_range:
-        paths = find_reachable_paths(player[1], player[2], in_range_cell[1], in_range_cell[2])
-        if paths:
-            reachable.append([in_range_cell, paths])
+    global PATH_HISTORY, PATHS_VISITED
+    limit = 1
+    PATH_HISTORY = []
+    PATHS_VISITED = []
+    while True:
+        existing_paths = copy.deepcopy(PATH_HISTORY)
+        PATH_HISTORY = []
+        find_reachable_paths(player[1], player[2], limit, existing_paths)
+        reachable = get_reachable_paths(in_range)
+        # check if any of the paths match the in_range, break if they do match at least
+        # exit loop if we have a path or no progress has been made so time to give up
+        if reachable:
+            break
+        if not PATH_HISTORY:
+            print('no progress made')
+            break
+        limit += 1
+        # print('Limit: ' + str(limit))
     return reachable
 
 
-def find_reachable_paths(from_row, from_col, dest_row, dest_col):
-    global VALID_PATHS
-    VALID_PATHS = []
-    get_path(from_row, from_col, dest_row, dest_col, [], [])
-    return VALID_PATHS
+def get_reachable_paths(dest_coords):
+    paths = []
+    for dest_coord in dest_coords:
+        for path in PATH_HISTORY:
+            current_row, current_col = path.current[-1]
+            if dest_coord[1] == current_row and dest_coord[2] == current_col:
+                paths.append(path)
+    return paths
 
 
-def get_path(current_row_a, current_col_a, dest_row, dest_col, visited, path):
-    global SHORTEST_PATH
-    visited.append([current_row_a, current_col_a])
-    path.append([current_row_a, current_col_a])
+def find_reachable_paths(from_row, from_col, limit, existing_paths):
+    # re-use the most recent paths if they exist
+    if len(existing_paths):
+        for idx, existing_path in enumerate(existing_paths):
+            new_path = Paths(existing_path.current, existing_path.visited, limit)
+            get_path(new_path.current[-1][0], new_path.current[-1][1], new_path)
+    else:
+        new_path = Paths([], [], limit)
+        get_path(from_row, from_col, new_path)
 
-    #if path == [[1, 5],[2, 5], [2, 4]]:
-    #    print('in magic path')
 
-    if len(path) > SHORTEST_PATH:
+def update_history(path):
+    PATH_HISTORY.append(path)
+
+
+def get_path(current_row_a, current_col_a, path):
+    global PATHS_VISITED
+    # need to check this so when we come back in, we don't keep adding back the same coord
+    if [current_row_a, current_col_a] not in path.current:
+        path.visited.append([current_row_a, current_col_a])
+        path.current.append([current_row_a, current_col_a])
+
+    if len(path.current) > path.limit:
+        # print('!! skipping too long: ' + str(path))
+        if path.limit > 1:
+            pass
+        update_history(copy.deepcopy(path))
         return path
 
-    if len(path) > 30:
-        #print('!! skipping too long: ' + str(path))
-        return path
+    # coords in reading order -> up, left right, down
+    coords = [[current_row_a-1, current_col_a],
+              [current_row_a, current_col_a-1],
+              [current_row_a, current_col_a + 1],
+              [current_row_a+1, current_col_a]]
 
-    # going in the wrong direction?
-    if len(path) > 4:
-        manh_now = manhattan_distance(current_row_a, current_col_a, dest_row, dest_col)
-        manh_before = manhattan_distance(path[-4][0], path[-4][1], dest_row, dest_col)
-        if manh_before < manh_now:
-            #print('!! skipping wrong way: ' + str(path))
-            return path  # wrong way!
+    for coord in coords:
+        if GAME_BOARD[coord[0]][coord[1]] == '.':
+            if ([coord[0], coord[1]] not in path.visited) and ([coord[0], coord[1]] not in PATHS_VISITED):
+                PATHS_VISITED.append([coord[0], coord[1]])
+                path = get_path(coord[0], coord[1], path)
+                path.current.pop()
+                path.visited.remove([coord[0], coord[1]])
 
-    if current_row_a == dest_row and current_col_a == dest_col:
-        if len(path) < SHORTEST_PATH:
-            SHORTEST_PATH = len(path)
-        VALID_PATHS.append(path.copy())
-        return path
-
-    # go down
-    if GAME_BOARD[current_row_a+1][current_col_a] == '.':
-        if [current_row_a+1, current_col_a] not in visited:
-            get_path(current_row_a+1, current_col_a, dest_row, dest_col, visited, path)
-            path.pop()
-            visited.remove([current_row_a+1, current_col_a])
-
-    # go up
-    if GAME_BOARD[current_row_a-1][current_col_a] == '.':
-        if [current_row_a-1, current_col_a] not in visited:
-            get_path(current_row_a-1, current_col_a, dest_row, dest_col, visited, path)
-            path.pop()
-            visited.remove([current_row_a-1, current_col_a])
-
-    # go right
-    if GAME_BOARD[current_row_a][current_col_a + 1] == '.':
-        if [current_row_a, current_col_a + 1] not in visited:
-            get_path(current_row_a, current_col_a + 1, dest_row, dest_col, visited, path)
-            path.pop()
-            visited.remove([current_row_a, current_col_a + 1])
-    # go left
-    #if path == [[1, 5],[2, 5]]:
-    #    print('in magic path')
-    #if current_row_a == 2 and current_col_a-1 == 4:
-    #    print('in magic pat 2')
-    if GAME_BOARD[current_row_a][current_col_a-1] == '.':
-        if [current_row_a, current_col_a-1] not in visited:
-            get_path(current_row_a, current_col_a-1, dest_row, dest_col, visited, path)
-            path.pop()
-            visited.remove([current_row_a, current_col_a-1])
+    return path
 
 
 def get_nearest(reachable):
     nearest = []
     shortest_length = 100000
     for candidate in reachable:
-        for candidate_paths in candidate[1]:
-            length = len(candidate_paths)
-            if length < shortest_length:
-                nearest = [[candidate[0], candidate_paths]]
-                shortest_length = length
-            elif length == shortest_length:
-                nearest.append([candidate[0], candidate_paths])
+        length = len(candidate.current)
+        if length < shortest_length:
+            nearest = [[candidate.current[0], candidate.current]]
+            shortest_length = length
+        elif length == shortest_length:
+            nearest.append([candidate.current[0], candidate.current])
     return nearest
 
 
@@ -225,6 +204,7 @@ def attack(player):
     if unit_to_attack:
         # time to shoot
         GAME_BOARD[unit_to_attack[1]][unit_to_attack[2]].hit_points -= 3
+        print(get_date_time() + ' attacked!')
         if unit_to_attack_hit_points - 3 < 1:
             killed(unit_to_attack[1], unit_to_attack[2])
         return True
@@ -279,31 +259,40 @@ def calcuate_outcome():
     remaining_score = 0
     for player in PLAYERS:
         remaining_score += player[0].hit_points
+    print('Result: ' + str(remaining_score) + ' * ' + str(ROUND) + ' = ')
     return remaining_score * ROUND
 
 
 def play_pacman(lines):
+    global ROUND
     init_game_board(lines)
     print_game_board()
     init_players()
-    while targets_remaining():
-        global ROUND
-        ROUND += 1
-        print('== Round: ' + str(ROUND) + ' ==')
+    while True:
+        print(get_date_time() + '== Round: ' + str(ROUND) + ' ==')
         print(str(len(PLAYERS)) + ' players')
-        i=0
+        i = 0
+        last_player_attacked = False
         for player in PLAYERS:
-            #if i == 11:
-            #    print('11')
-            #    pass
+            attacked = False
             if player[0].hit_points > 0:
-                print('Players turn: ' + str(i) + ' (' + str(player[1]) + ', ' + str(player[2]) + ')')
-                if not attack(player):
+                print(get_date_time() + 'Players turn: ' + str(i) + ' (' + str(player[1]) + ', ' + str(player[2]) + ')')
+                if attack(player):
+                    attacked = True
+                else:
                     move(player)
-                    attack(player)
+                    attacked = attack(player)
+            if player == PLAYERS[-1] and attacked:
+                last_player_attacked = True
             i += 1
         print_game_board()
         init_players()
+        if not targets_remaining():
+            # we didn't finish that round, so it wasn't a full round
+            if not last_player_attacked:
+                ROUND -= 1
+            break
+        ROUND += 1
     return calcuate_outcome()
 
 
