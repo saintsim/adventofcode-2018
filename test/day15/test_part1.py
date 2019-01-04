@@ -34,6 +34,10 @@ class TestPacman(unittest.TestCase):
     def testInput7(self):
         self.assertEqual(5300, TestPacman.runCase('../../src/day15/test_input_7'))
 
+    def testInput8(self):
+        self.assertEqual(10234, TestPacman.runCase('../../src/day15/test_input_8'))
+
+
 if __name__ == '__main__':
     if __name__ == '__main__':
         unittest.main()

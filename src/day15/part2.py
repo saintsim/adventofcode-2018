@@ -43,7 +43,7 @@ def move(player):
     print(get_date_time() + 'finding nearest...')
     nearest = get_nearest(reachable)
     print(get_date_time() + 'finding chosen...')
-    chosen = get_chosen(player, nearest)
+    chosen = get_chosen(nearest)
     if chosen:
         # make the move
         old_row, old_col = chosen[1][0]
@@ -184,13 +184,17 @@ def get_unit_coords_around_me(row, col):
     return [up, left, right, down]
 
 
-def get_chosen(player, nearest):
+def get_chosen(nearest):
     # we decide ties based upon reading order of the next step, we don't care about future steps
-    for preferred_move in get_unit_coords_around_me(player[1], player[2]):
-        for nearest_candiate in nearest:
-            if nearest_candiate[1][1] == preferred_move:
-                return nearest_candiate
-    return []
+    if not nearest:
+        return []
+    nearest_chosen = nearest[0]
+    for near in nearest:
+        if near == nearest_chosen[0]:
+            continue
+        if near[1][-1][0] < nearest_chosen[1][-1][0] or (near[1][-1][0] == nearest_chosen[1][-1][0] and near[1][-1][1] < nearest_chosen[1][-1][1]):
+            nearest_chosen = near
+    return nearest_chosen
 
 
 def attack(player):
@@ -328,6 +332,6 @@ def elves_win_outcome(lines):
 
 
 if __name__ == '__main__':
-    with open('test_input_2', 'r') as file:
+    with open('input', 'r') as file:
         lines = file.readlines()
         print('Result: ' + str(elves_win_outcome(lines)))
