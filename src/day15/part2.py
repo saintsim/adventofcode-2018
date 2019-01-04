@@ -5,9 +5,12 @@ import datetime
 
 GAME_BOARD = []
 PLAYERS = []  # Unit object + row/col of each player in this round
+ELVES_ATTACK_POWER = 4
+GOBLINS_ATTACK_POWER = 3
 ROUND = 1  # round number
 PATH_HISTORY = []
 PATHS_VISITED = []
+ANY_ELVES_KILLED = False
 
 
 class Unit:
@@ -191,6 +194,7 @@ def get_chosen(player, nearest):
 
 
 def attack(player):
+    global ANY_ELVES_KILLED
     # any enemy around them?
     unit_to_attack = []
     unit_to_attack_hit_points = 300
@@ -203,9 +207,12 @@ def attack(player):
                     unit_to_attack_hit_points = cell.hit_points
     if unit_to_attack:
         # time to shoot
-        GAME_BOARD[unit_to_attack[1]][unit_to_attack[2]].hit_points -= 3
+        points_lost = ELVES_ATTACK_POWER if target_type == 'G' else GOBLINS_ATTACK_POWER
+        GAME_BOARD[unit_to_attack[1]][unit_to_attack[2]].hit_points -= points_lost
         print(get_date_time() + ' attacked!')
-        if unit_to_attack_hit_points - 3 < 1:
+        if unit_to_attack_hit_points - points_lost < 1:
+            if target_type == 'E':
+                ANY_ELVES_KILLED = True
             killed(unit_to_attack[1], unit_to_attack[2])
         return True
     return False
@@ -294,6 +301,8 @@ def play_pacman(lines):
                     attacked = attack(player)
             if player == PLAYERS[-1] and attacked:
                 last_player_attacked = True
+            if ANY_ELVES_KILLED:
+                return 'ELVES_DEAD'
             i += 1
         print_game_board()
         init_players()
@@ -306,7 +315,19 @@ def play_pacman(lines):
     return calcuate_outcome()
 
 
+def elves_win_outcome(lines):
+    global ELVES_ATTACK_POWER, ANY_ELVES_KILLED
+    for elves_power in range(4, 300, 1):
+        ANY_ELVES_KILLED = False
+        print(get_date_time() + 'ELVES_ATTACK_POWER = ' + str(elves_power))
+        ELVES_ATTACK_POWER = elves_power
+        outcome = play_pacman(lines)
+        if outcome != 'ELVES_DEAD':
+            print(get_date_time() + 'ELVES_ATTACK_POWER = ' + str(elves_power))
+            return outcome
+
+
 if __name__ == '__main__':
-    with open('test_input_6', 'r') as file:
+    with open('test_input_2', 'r') as file:
         lines = file.readlines()
-        print('Result: ' + str(play_pacman(lines)))
+        print('Result: ' + str(elves_win_outcome(lines)))
